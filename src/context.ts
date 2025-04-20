@@ -14,8 +14,18 @@
  * limitations under the License.
  */
 
-import * as playwright from 'playwright';
+// import * as playwright from 'playwright';
+import { chromium, firefox, webkit } from 'playwright-extra';
+import type * as playwright from 'playwright'; // Keep original types for reference
+const stealthPlugin = require('playwright-extra-plugin-stealth');
 import yaml from 'yaml';
+
+// Apply stealth plugin
+// Note: Requires() returns the module. If the main export is the plugin function,
+// we need to call it. Let's assume stealthPlugin() is the correct usage for now.
+chromium.use(stealthPlugin()); 
+firefox.use(stealthPlugin()); // Apply to firefox too
+webkit.use(stealthPlugin()); // Apply to webkit too
 
 import { waitForCompletion } from './tools/utils';
 import { ManualPromise } from './manualPromise';
@@ -286,13 +296,16 @@ ${code.join('\n')}
         url.searchParams.set('browser', this.options.browserName);
       if (this.options.launchOptions)
         url.searchParams.set('launch-options', JSON.stringify(this.options.launchOptions));
-      const browser = await playwright[this.options.browserName ?? 'chromium'].connect(String(url));
+      const browserType = this.options.browserName === 'firefox' ? firefox :
+        this.options.browserName === 'webkit' ? webkit :
+        chromium; // Default to chromium
+      const browser = await browserType.connect(String(url));
       const browserContext = await browser.newContext();
       return { browser, browserContext };
     }
 
     if (this.options.cdpEndpoint) {
-      const browser = await playwright.chromium.connectOverCDP(this.options.cdpEndpoint);
+      const browser = await chromium.connectOverCDP(this.options.cdpEndpoint);
       const browserContext = browser.contexts()[0];
       return { browser, browserContext };
     }
@@ -303,7 +316,9 @@ ${code.join('\n')}
 
   private async _launchPersistentContext(): Promise<playwright.BrowserContext> {
     try {
-      const browserType = this.options.browserName ? playwright[this.options.browserName] : playwright.chromium;
+      const browserType = this.options.browserName === 'firefox' ? firefox :
+        this.options.browserName === 'webkit' ? webkit :
+        chromium; // Default to chromium
       return await browserType.launchPersistentContext(this.options.userDataDir, this.options.launchOptions);
     } catch (error: any) {
       if (error.message.includes('Executable doesn\'t exist'))
